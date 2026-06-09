@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Секреты и окружение
+.env
+
+# Локальные данные (CSV-результаты лежат в avito_performance/raw_data/, см. его .gitignore)
