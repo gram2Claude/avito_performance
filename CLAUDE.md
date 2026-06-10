@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 pip install -r avito_performance/requirements.txt
+pip install -r avito_performance/requirements-dev.txt   # pytest (для unit-тестов)
 ```
 
 Credentials go in `avito_performance/.env` (copy from `avito_performance/.env.example`):
@@ -14,6 +15,8 @@ Credentials go in `avito_performance/.env` (copy from `avito_performance/.env.ex
 CLIENT_ID=...
 CLIENT_SECRET=...
 ACCOUNT_ID=...        # ID рекламного аккаунта из кабинета Авито Реклама
+TEST_START_DATE=...   # YYYY-MM-DD — период для smoke-тестов статистики
+TEST_END_DATE=...     # (≤ 100 дней между ними)
 ```
 
 `AvitoPerformanceClient` reads credentials from env vars `CLIENT_ID` / `CLIENT_SECRET`
@@ -33,6 +36,22 @@ and the account id from `ACCOUNT_ID`, or they can be passed explicitly to the co
 (токен-рефреш остаётся автоматическим). См. `info/00_api_methods.md` → раздел про привязку токена.
 
 ## Running
+
+Unit-тесты (pytest, моки — без сети и `.env`):
+```bash
+python -m pytest avito_performance/tests -q
+# один тест:
+python -m pytest avito_performance/tests/test_avito_performance.py::test_get_admin_audit -q
+```
+
+Smoke-тесты (живой API, нужен `.env`; запуск из корня репо, по одному файлу на функцию):
+```bash
+python avito_performance/smoke_tests/test_<имя_функции>.py   # напр. test_get_admin_audit.py
+```
+Даты статистики берутся из `.env` (`TEST_START_DATE`/`TEST_END_DATE`). Результат сохраняется в
+`avito_performance/raw_data/<имя_функции>[_{from}_{to}].csv` (cp1251, gitignored); перед записью
+тест удаляет старые выгрузки этой же функции — в `raw_data/` лежит только последняя.
+После прогона показать первые 5 строк **из сохранённого CSV** (не из памяти) — см. `test/00_README.md`.
 
 Demo notebook:
 ```bash
@@ -58,6 +77,8 @@ Single-file library: `avito_performance/avito_performance.py`.
 - `_get()` / `_post()` → JSON; `_request()` handles 429 with exponential backoff (max 5 retries, starts at 1 s).
 - `_fetch_all_pages(suffix, entity_key, filter_body)` → paginated list helper for справочники
   (body `{filter, limit, page}`, walks pages until empty / `page*limit >= total`).
+- `_campaign_stats()` / `_groups_stats()` / `_creatives_stats()` → обёртки stats-эндпоинтов
+  (для групп/креативов — с массивом `groupIDs`/`creativeIDs`).
 - `_account_path(suffix)` → builds `/ads/v1/account/{ACCOUNT_ID}{suffix}`.
 
 Synchronous JSON API — no async submit/poll/download, no CSV/ZIP.
@@ -86,14 +107,28 @@ Synchronous JSON API — no async submit/poll/download, no CSV/ZIP.
   из соответствующего справочника, сгруппированные по `campaign_id`.
 - **Охвата (reach) в API нет.** В выходных DataFrame оставлены: показы (`impressions` ← API `views`),
   клики (`clicks`), расход (`costs_nds`/`spend_bonus`) и видео-метрики (`video_views_25/50/75/100`, `vtr`).
+- **Полей названий в статистике нет** (`campaign_name`/`group_name`/`creative_name` удалены по
+  требованию проекта) — имена джойнить из справочников по `campaign_id`/`group_id`/`creative_id`.
   Метрики `ctr`, `cpm`, `cpc`, `q25`, `q50`, `q75` из API **не выгружаются** (исключены по требованию проекта).
   Охватных функций нет.
 
+**Цепочка вызовов справочников (join-поля):** `get_creative_dict` → вызывает `get_group_dict`
+(берёт `id_key_group`/`owner_id`) → тот вызывает `get_campaign_dict` (берёт
+`camp_type`/`camp_category`/`owner_id`). `get_admin_audit` вызывает `get_campaigns_daily_stat`
++ `get_campaign_dict`. Каждый уровень добавляет постраничную выгрузку вышестоящего справочника.
+
 **Helper functions** (private, module-level):
-- `_fetch_all_pages()` — постраничная выгрузка list-методов
-- `_date_range()` / `_chunks()` — даты и батчи
-- `_day_from_timestamp()` — `YYYY-MM-DD` из ISO-таймстампа статистики
-- `_pick()` — первый найденный ключ из dict; `_parse_num()` — число → float
+- `_pick()` — первый существующий ключ из dict — обязателен из-за неоднородного регистра
+  ключей API (`managerID`/`advertiserId`; `groupID` в списке vs `groupId` в creatives/stats)
+- `_metric_cols()` / `_STAT_METRIC_KEYS` — маппинг метрик StatsData → колонки
+  (`impressions←views`, `costs_nds←spend`); общий для всех трёх stat-функций
+- `_apply_stat_enrichment()` — общее обогащение статистики (costs_nds → float.round(2),
+  НДС, ak, константы, `id_key_camp`)
+- `_vat_divisor()` — делитель НДС по году даты строки (2026+ → 1.22, ранее → 1.20)
+- `_day_from_timestamp()` — `YYYY-MM-DD` из ISO-таймстампа статистики (приходит с `+03:00`)
+- `_normalize_iso_dt()` — нормализация дат ISO-Z (без сдвига таймзоны!) и Go-time;
+  сейчас полей дат в выгрузках нет, хелпер сохранён с unit-тестами
+- `_parse_num()` — число → float; `_date_range()` / `_chunks()` — даты и батчи (зарезервированы)
 
 ## API Constraints
 
