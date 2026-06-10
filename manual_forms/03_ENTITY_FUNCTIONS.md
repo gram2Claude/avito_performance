@@ -220,3 +220,36 @@ Fn5. Колонки выходного DataFrame (перечисли имена 
        campaign_id←{campaignID} из пути; метрики — StatsData.
        Вход: creativeIDs (минимум 1) — берутся из get_creative_dict. Период ≤100 дней.
 ```
+
+---
+
+### Функция 7
+
+```
+Fn1. Имя функции (snake_case):
+     Пример:  get_campaign_dict, get_campaign_daily_stat
+     Ответ:   get_admin_audit
+     → Плейсхолдер: {FUNCTION_7_NAME}
+
+Fn2. Тип (поставь [x] напротив одного варианта):
+     [ ] Справочник  — уникальные сущности с атрибутами, без дат
+     [x] Статистика  — метрики по дням, date_from / date_to
+         (агрегатная таблица admin_audit поверх get_campaigns_daily_stat,
+          собственного эндпоинта API нет)
+     [ ] Охват       — кумулятивная метрика, global_start_date + date_from / date_to
+
+Fn4. Описание одной строкой:
+     Пример:  Дневная статистика по рекламным кампаниям
+     Ответ:   Сводный аудит по дням (admin_audit): суммы impressions/clicks/costs_nds/costs_without_nds
+     → Плейсхолдер: {FN_7_ONELINER}
+
+Fn5. Колонки выходного DataFrame (перечисли имена через запятую):
+     Пример:  date, campaign_id, campaign_name, views, clicks, costs_nds
+     Ответ:   date, account_id, source_type_id, owner_id, impressions, clicks, costs_nds, costs_without_nds, chef_flag
+     Правило: все имена колонок — snake_case.
+     → Плейсхолдер: {DF_7_COLUMNS}
+     Маппинг: собственного API-вызова нет — группировка результата get_campaigns_daily_stat
+       по date × account_id × source_type_id × owner_id с суммированием
+       impressions/clicks/costs_nds/costs_without_nds; owner_id — из справочника
+       кампаний (join по campaign_id); chef_flag — константа 1 (дефолт).
+```

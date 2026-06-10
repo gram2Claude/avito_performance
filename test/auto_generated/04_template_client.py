@@ -513,6 +513,8 @@ def {FUNCTION_2_NAME}(date_from: str, date_to: str) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns={ENTITY_NAME_UPPER}_STAT_COLUMNS)
     df = pd.DataFrame(rows)
+    # costs_nds — десятичный тип, округление до 2 знаков (до вычисления производных)
+    df["costs_nds"] = pd.to_numeric(df["costs_nds"], errors="coerce").astype(float).round(2)
     # Расход без НДС: ставка по году даты строки — year >= 2026 → /1.22 (22%), иначе /1.20 (20%)
     _vat_div = pd.Series(1.20, index=df.index, dtype="float64")
     _vat_div[pd.to_numeric(df["date"].astype(str).str[:4], errors="coerce") >= 2026] = 1.22

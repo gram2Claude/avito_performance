@@ -104,6 +104,8 @@ From `specs/{API_REFERENCE_FILENAME}` (repo root):
 `camp_type = "camp_test"`, `camp_category = "cat_test"`, `owner_id = 1`
 
 **Для функций с расходами** (агентская комиссия `ak = 0.5`):
+- `costs_nds` — **десятичный тип (float), округление до 2 знаков** сразу после чтения из API,
+  до вычисления производных
 - `costs_without_nds = costs_nds / (1 + ставка_НДС)` — **ставка по году даты строки:
   year ≥ 2026 → 22% (делитель 1.22), раньше → 20% (делитель 1.20)**; считается per-row по `date`
 - `costs_nds_ak = costs_nds * 1.5`

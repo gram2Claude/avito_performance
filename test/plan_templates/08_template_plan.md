@@ -47,7 +47,9 @@
 3. Реализовать публичную функцию `{SPEC_FUNCTION_NAME}()`:
    - Парсинг API-данных → промежуточный `df`
    - **Перед** `df.reindex(columns={SPEC_COLUMNS_CONST})` — обогатить df:
-     - Для функций с расходами: `df["costs_without_nds"] = df["costs_nds"] / _vat_divisor(df["date"])`
+     - Для функций с расходами — сначала тип `costs_nds`: десятичный, 2 знака после запятой
+       (`df["costs_nds"] = pd.to_numeric(df["costs_nds"], errors="coerce").astype(float).round(2)`),
+       затем производные: `df["costs_without_nds"] = df["costs_nds"] / _vat_divisor(df["date"])`
        — ставка НДС по году даты строки (year ≥ 2026 → 1.22 / 22%, иначе → 1.20 / 20%);
        `df["ak"] = 0.5`; `df["costs_nds_ak"] = df["costs_nds"] * 1.5`;
        `df["costs_without_nds_ak"] = df["costs_without_nds"] * 1.5`

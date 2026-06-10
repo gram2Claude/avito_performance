@@ -89,7 +89,7 @@ def test_metric_cols_mapping_and_excludes_removed():
     d = {"views": 1, "clicks": 2, "spend": 3, "spendBonus": 4, "vtr": 0.5,
          "ctr": 9, "cpm": 9, "cpc": 9, "q25": 9, "q50": 9, "q75": 9}
     m = ap._metric_cols(d)
-    assert m["costs_nds"] == 3 and m["spend_bonus"] == 4 and m["views"] == 1 and m["vtr"] == 0.5
+    assert m["costs_nds"] == 3 and m["spend_bonus"] == 4 and m["impressions"] == 1 and m["vtr"] == 0.5
     assert m["video_views_25"] is None          # отсутствует в источнике → None
     for removed in ("ctr", "cpm", "cpc", "q25", "q50", "q75"):
         assert removed not in m                  # удалённые метрики не извлекаются
@@ -231,8 +231,8 @@ def test_get_creative_dict(monkeypatch, sample_creatives, sample_groups, stat_ca
     assert list(df.columns) == ap.CREATIVE_DICT_COLUMNS
     row = df.iloc[0]
     assert row.creative_id == 1000 and row.group_id == 10 and row.campaign_id == 100
-    assert row.id_key_ad == "1_100_1000"                 # ad-level ключ
     assert row.id_key_group == "1_100_10"                # из справочника групп
+    assert row.id_key_ad == "1_100_10_1000"              # id_key_group + "_" + creative_id
     assert row.owner_id == 1                             # из справочника групп
     assert row.button_text is None                       # отсутствует в API → None
 
@@ -248,7 +248,8 @@ def test_get_campaigns_daily_stat(monkeypatch, stat_campaigns, campaign_stats_re
     assert list(df.columns) == ap.CAMPAIGNS_STAT_COLUMNS
     assert len(df) == 2                                   # два дня данных
     assert set(df["date"]) == {"2026-06-05", "2025-06-05"}
-    assert list(df["costs_nds"]) == [1220, 1200]          # costs_nds ← spend
+    assert list(df["costs_nds"]) == [1220.0, 1200.0]      # costs_nds ← spend
+    assert df["costs_nds"].dtype == "float64"             # десятичный тип, 2 знака
     # НДС по году: оба → 1000.0
     assert df["costs_without_nds"].round(2).tolist() == [1000.0, 1000.0]
     assert (df["id_key_camp"] == "1_100").all()
@@ -278,7 +279,7 @@ def test_get_creatives_daily_stat(monkeypatch, sample_creatives, creatives_stats
     assert list(df.columns) == ap.CREATIVES_STAT_COLUMNS
     assert len(df) == 2
     assert (df["creative_id"] == 1000).all() and (df["group_id"] == 10).all()
-    assert list(df["id_key_ad"].unique()) == ["1_100_1000"]   # groupId (строчное) подхвачен
+    assert list(df["id_key_ad"].unique()) == ["1_100_10_1000"]   # id_key_group+"_"+creative_id; groupId (строчное) подхвачен
 
 
 def test_stat_empty(monkeypatch, stat_campaigns):
@@ -289,6 +290,35 @@ def test_stat_empty(monkeypatch, stat_campaigns):
     df = ap.get_campaigns_daily_stat("2026-06-05", "2026-06-05")
     assert len(df) == 0
     assert list(df.columns) == ap.CAMPAIGNS_STAT_COLUMNS
+
+
+def test_get_admin_audit(monkeypatch, stat_campaigns, campaign_stats_resp):
+    # агрегат поверх get_campaigns_daily_stat + owner_id из get_campaign_dict
+    monkeypatch.setattr(ap.AvitoPerformanceClient, "_fetch_all_pages",
+                        lambda self, suffix, entity_key, filter_body=None: stat_campaigns)
+    monkeypatch.setattr(ap.AvitoPerformanceClient, "_campaign_stats",
+                        lambda self, cid, d_from, d_to: campaign_stats_resp)
+    df = ap.get_admin_audit("2025-06-05", "2026-06-05")
+    assert list(df.columns) == ap.ADMIN_AUDIT_COLUMNS
+    assert len(df) == 2                                   # по строке на день
+    by_date = df.set_index("date")
+    assert by_date.loc["2026-06-05", "impressions"] == 1000
+    assert by_date.loc["2025-06-05", "impressions"] == 2000
+    assert by_date.loc["2026-06-05", "clicks"] == 50
+    assert df["costs_without_nds"].round(2).tolist() == [1000.0, 1000.0]
+    assert (df["account_id"] == 1).all() and (df["source_type_id"] == 9).all()
+    assert (df["owner_id"] == 1).all()                    # из справочника кампаний
+    assert (df["chef_flag"] == 1).all()                   # дефолт
+
+
+def test_get_admin_audit_empty(monkeypatch, stat_campaigns):
+    monkeypatch.setattr(ap.AvitoPerformanceClient, "_fetch_all_pages",
+                        lambda self, *a, **k: stat_campaigns)
+    monkeypatch.setattr(ap.AvitoPerformanceClient, "_campaign_stats",
+                        lambda self, *a, **k: {"campaign": {"data": []}})
+    df = ap.get_admin_audit("2026-06-05", "2026-06-05")
+    assert len(df) == 0
+    assert list(df.columns) == ap.ADMIN_AUDIT_COLUMNS
 
 
 @pytest.mark.parametrize("cols", ["CAMPAIGNS_STAT_COLUMNS", "GROUPS_STAT_COLUMNS", "CREATIVES_STAT_COLUMNS"])

@@ -152,7 +152,8 @@ payment_model←paymentModel, campaign_type←campaignType, title, description, 
 link, origin_url←originUrl, preview_url←previewUrl, landing_id←landingID, advertiser_id←advertiserID,
 manager_id←managerID`. Обогащение (ad-level): `account_id=1, source_type_id=9`;
 `id_key_group, owner_id` — **из справочника групп** (`get_group_dict`, left-join по `group_id`,
-добавлено 2026-06-10); `id_key_camp="1_"+campaign_id, id_key_ad=id_key_camp+"_"+creative_id`.
+добавлено 2026-06-10); `id_key_camp="1_"+campaign_id, id_key_ad=id_key_group+"_"+creative_id`
+(формула изменена 2026-06-10, ранее `id_key_camp+"_"+creative_id`).
 
 ### Специфика
 - `buttonText`, `originUrl`, `landingID` в реальном ответе **отсутствуют** → `None`.
@@ -169,6 +170,7 @@ manager_id←managerID`. Обогащение (ad-level): `account_id=1, source_
 |------|-----------|---------|
 | 2026-06-09 | Первичная реализация | — |
 | 2026-06-10 | Добавлены поля `id_key_group`, `owner_id` (join из справочника групп по `group_id`) | Требование проекта |
+| 2026-06-10 | `id_key_ad` теперь = `id_key_group+"_"+creative_id` (было `id_key_camp+"_"+creative_id`) | Требование проекта |
 
 ---
 
@@ -188,7 +190,8 @@ manager_id←managerID`. Обогащение (ad-level): `account_id=1, source_
 Ключи: `date←campaign.data[].timestamp[:10], campaign_id, payment_model, campaign_type`
 (`campaign_name` удалён 2026-06-10; название кампании доступно через `get_campaign_dict` по `campaign_id`).
 Метрики StatsData (без `ctr`/`cpm`/`cpc`/`q25`/`q50`/`q75` — исключены по требованию проекта):
-`views, clicks, costs_nds←spend, spend_bonus←spendBonus, video_views_25/50/75/100←videoViews*, vtr`.
+`impressions←views (переименовано 2026-06-10), clicks, costs_nds←spend, spend_bonus←spendBonus,
+video_views_25/50/75/100←videoViews*, vtr`.
 Обогащение расходов:
 `costs_without_nds=costs_nds/(1.22 при year≥2026, иначе 1.20), ak=0.5, costs_nds_ak=costs_nds*1.5,
 costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_key_camp`.
@@ -208,6 +211,8 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 |------|-----------|---------|
 | 2026-06-09 | Первичная реализация | — |
 | 2026-06-10 | Удалено поле `campaign_name` из выходного DataFrame | Требование проекта; название кампании остаётся в справочнике `get_campaign_dict` |
+| 2026-06-10 | Метрика `views` переименована в `impressions` (источник в API — `views`) | Требование проекта; общее для всех 3 stat-функций (`_STAT_METRICS`/`_STAT_METRIC_KEYS`) |
+| 2026-06-10 | `costs_nds` — десятичный тип (float), округление до 2 знаков (`_apply_stat_enrichment`) | Требование проекта; общее для всех stat-функций и admin_audit |
 
 ---
 
@@ -239,6 +244,8 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 |------|-----------|---------|
 | 2026-06-09 | Первичная реализация | — |
 | 2026-06-10 | Удалено поле `group_name` из выходного DataFrame | Требование проекта; название группы остаётся в справочнике `get_group_dict` |
+| 2026-06-10 | Метрика `views` переименована в `impressions` | Требование проекта; общее для всех 3 stat-функций |
+| 2026-06-10 | `costs_nds` — десятичный тип, округление до 2 знаков | Требование проекта; общее для всех stat-функций |
 
 ---
 
@@ -257,7 +264,9 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 ### Поля выходного DataFrame (21 колонка)
 Ключи: `date, campaign_id, group_id←creatives[].groupId, creative_id←creatives[].id`
 (`creative_name` удалён 2026-06-10; название креатива доступно через `get_creative_dict` по `creative_id`).
-Метрики StatsData + обогащение расходов; ad-level → дополнительно `id_key_ad=id_key_camp+"_"+creative_id`.
+Метрики StatsData + обогащение расходов; ad-level → дополнительно
+`id_key_ad=id_key_group+"_"+creative_id`, где `id_key_group=id_key_camp+"_"+group_id`
+(формула изменена 2026-06-10, ранее `id_key_camp+"_"+creative_id`).
 
 ### Специфика
 - ⚠️ В ответе `creatives/stats` поле группы — **`groupId`** (строчная `d`), а в списке креативов — `groupID`.
@@ -270,5 +279,40 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 |------|-----------|---------|
 | 2026-06-09 | Первичная реализация | — |
 | 2026-06-10 | Удалено поле `creative_name` из выходного DataFrame | Требование проекта; название креатива остаётся в справочнике `get_creative_dict` |
+| 2026-06-10 | Метрика `views` переименована в `impressions` | Требование проекта; общее для всех 3 stat-функций |
+| 2026-06-10 | `id_key_ad` теперь = `id_key_group+"_"+creative_id` (было `id_key_camp+"_"+creative_id`) | Требование проекта |
+| 2026-06-10 | `costs_nds` — десятичный тип, округление до 2 знаков | Требование проекта; общее для всех stat-функций |
+
+---
+
+## Функция: `get_admin_audit`
+
+- **Статус:** реализована · **Дата:** 2026-06-10 · **Тип:** статистика (агрегат по дням, таблица **admin_audit**)
+- **Файл:** `avito_performance.py` → `get_admin_audit(date_from, date_to)`
+- **Spec/Plan:** отдельно не составлялись (агрегат по требованию проекта)
+- **Smoke-test:** `smoke_tests/test_get_admin_audit.py` · **CSV:** `raw_data/get_admin_audit_{from}_{to}.csv`
+
+### API-метод
+- **Собственного эндпоинта в API нет.** Агрегат поверх `get_campaigns_daily_stat(date_from, date_to)`
+  (то есть `POST …/campaigns/{campaignID}/stats` по всем кампаниям) + `get_campaign_dict` для `owner_id`.
+
+### Поля выходного DataFrame (9 колонок)
+`date, account_id, source_type_id, owner_id, impressions, clicks, costs_nds, costs_without_nds, chef_flag`.
+- Метрики `impressions / clicks / costs_nds / costs_without_nds` **суммируются** по ключу группировки
+  `date × account_id × source_type_id × owner_id`.
+- `owner_id` — из справочника кампаний (`get_campaign_dict`, join по `campaign_id` до группировки).
+- `chef_flag = 1` — константа-дефолт.
+
+### Специфика
+- Период ≤ 100 дней (ограничение исходной статистики).
+- Вызывает `get_campaigns_daily_stat` (по 1 stats-запросу на кампанию) и `get_campaign_dict`
+  (+1 постраничная выгрузка `/campaigns`).
+- Пустая статистика → пустой DataFrame с правильными колонками.
+
+### История изменений
+| Дата | Изменение | Причина |
+|------|-----------|---------|
+| 2026-06-10 | Первичная реализация (агрегатная таблица admin_audit) | Требование проекта |
+| 2026-06-10 | `costs_nds` — десятичный тип, округление до 2 знаков (повторное после суммирования) | Требование проекта |
 
 ---

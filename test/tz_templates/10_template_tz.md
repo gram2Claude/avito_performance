@@ -262,7 +262,7 @@ HTTP: `GET {SYNC_DATA_PATH}` с `dateFrom` / `dateTo`. Данные из `{SYNC_
 | `{ENTITY_NAME}_name` | string | Название |
 | `views` | float | Показы |
 | `clicks` | float | Клики |
-| `costs_nds` | float | Расход в рублях **с НДС** (как отдаёт API) |
+| `costs_nds` | float | Расход в рублях **с НДС** (как отдаёт API); десятичный тип, **округление до 2 знаков** после запятой |
 | `costs_without_nds` | float | **вычисляется**: `costs_nds / (1 + ставка_НДС)`, где ставка зависит от года даты строки (см. примечание ниже) |
 | `ak` | float | **константа** (значение `0.5` — агентская комиссия 50%) |
 | `costs_nds_ak` | float | **вычисляется**: `costs_nds * (1 + ak)` |

@@ -7,15 +7,14 @@
 - get_campaigns_daily_stat(date_from, date_to)     — дневная статистика по кампаниям
 - get_groups_daily_stat(date_from, date_to)        — дневная статистика по группам
 - get_creatives_daily_stat(date_from, date_to)     — дневная статистика по креативам
+- get_admin_audit(date_from, date_to)              — сводный аудит по дням (admin_audit,
+                                                     агрегат поверх статистики кампаний)
 
 Учётные данные читаются из переменных окружения CLIENT_ID и CLIENT_SECRET,
 ID рекламного аккаунта — из ACCOUNT_ID (или передаются явно в AvitoPerformanceClient).
 
 Авторизация — OAuth 2.0 grant_type=client_credentials (`POST /token`, Bearer-токен,
 TTL 24 ч). API синхронный, формат JSON. Полный разбор методов — в info/00_api_methods.md.
-
-ВНИМАНИЕ: это скаффолд (Шаг 3). Публичные функции — стабы с NotImplementedError;
-реализуются по одной в Шаге 4 (spec → plan → impl).
 """
 
 from __future__ import annotations
@@ -87,7 +86,7 @@ CREATIVE_DICT_COLUMNS = [
 # Метрики статистики (StatsData), общие для всех трёх stat-функций.
 # Намеренно НЕ включаем ctr, cpm, cpc, q25, q50, q75 (исключены по требованию проекта).
 _STAT_METRICS = [
-    "views", "clicks", "costs_nds", "spend_bonus",
+    "impressions", "clicks", "costs_nds", "spend_bonus",
     "video_views_25", "video_views_50", "video_views_75", "video_views_100",
     "vtr",
 ]
@@ -111,6 +110,13 @@ CREATIVES_STAT_COLUMNS = (
     + _STAT_METRICS + _COST_ENRICHMENT
     + ["account_id", "source_type_id", "id_key_camp", "id_key_ad"]
 )
+
+# admin_audit — сводный аудит: агрегат поверх статистики кампаний (без своего эндпоинта)
+ADMIN_AUDIT_COLUMNS = [
+    "date", "account_id", "source_type_id", "owner_id",
+    "impressions", "clicks", "costs_nds", "costs_without_nds",
+    "chef_flag",
+]
 
 
 # ── Клиент ────────────────────────────────────────────────────────────────────
@@ -367,7 +373,7 @@ def _parse_num(value: Any) -> float | None:
 # не-видео кампаний → приходит None. costs_nds ← spend (целые ₽ с НДС).
 # ctr/cpm/cpc/q25/q50/q75 из API не выгружаем (исключены по требованию проекта).
 _STAT_METRIC_KEYS = [
-    ("views", "views"), ("clicks", "clicks"),
+    ("impressions", "views"), ("clicks", "clicks"),
     ("costs_nds", "spend"), ("spend_bonus", "spendBonus"),
     ("video_views_25", "videoViews25"), ("video_views_50", "videoViews50"),
     ("video_views_75", "videoViews75"), ("video_views_100", "videoViews100"),
@@ -398,7 +404,8 @@ def _apply_stat_enrichment(df: pd.DataFrame) -> pd.DataFrame:
     НДС зависит от года даты строки: 2026+ → 22%, ранее → 20% (см. `_vat_divisor`).
     Агентская комиссия ak = 0.5.
     """
-    df["costs_nds"] = pd.to_numeric(df["costs_nds"], errors="coerce")
+    # costs_nds — десятичный тип, округление до 2 знаков (API отдаёт целые ₽ с НДС)
+    df["costs_nds"] = pd.to_numeric(df["costs_nds"], errors="coerce").astype(float).round(2)
     df["costs_without_nds"] = df["costs_nds"] / _vat_divisor(df["date"])
     df["ak"] = 0.5
     df["costs_nds_ak"] = df["costs_nds"] * (1 + 0.5)
@@ -529,7 +536,7 @@ def get_creative_dict() -> pd.DataFrame:
     groups = get_group_dict()[["group_id", "id_key_group", "owner_id"]]
     df = df.merge(groups, on="group_id", how="left")
     df["id_key_camp"] = "1_" + df["campaign_id"].astype(str)
-    df["id_key_ad"] = df["id_key_camp"] + "_" + df["creative_id"].astype(str)
+    df["id_key_ad"] = df["id_key_group"] + "_" + df["creative_id"].astype(str)
 
     return df.reindex(columns=CREATIVE_DICT_COLUMNS).reset_index(drop=True)
 
@@ -651,5 +658,37 @@ def get_creatives_daily_stat(date_from: str, date_to: str) -> pd.DataFrame:
         return pd.DataFrame(columns=CREATIVES_STAT_COLUMNS)
     df = pd.DataFrame(rows)
     df = _apply_stat_enrichment(df)
-    df["id_key_ad"] = df["id_key_camp"] + "_" + df["creative_id"].astype(str)
+    # id_key_ad = id_key_group + "_" + creative_id (id_key_group = id_key_camp + "_" + group_id)
+    df["id_key_ad"] = (df["id_key_camp"] + "_" + df["group_id"].astype(str)
+                       + "_" + df["creative_id"].astype(str))
     return df.reindex(columns=CREATIVES_STAT_COLUMNS).reset_index(drop=True)
+
+
+def get_admin_audit(date_from: str, date_to: str) -> pd.DataFrame:
+    """Сводный аудит (admin_audit): суммы метрик по дням.
+
+    Собственного эндпоинта в API нет — агрегат поверх get_campaigns_daily_stat:
+    impressions / clicks / costs_nds / costs_without_nds суммируются по
+    date × account_id × source_type_id × owner_id (owner_id — из справочника
+    кампаний, join по campaign_id). chef_flag = 1 (дефолт).
+
+    Параметры:
+        date_from — начало периода, YYYY-MM-DD
+        date_to   — конец периода,  YYYY-MM-DD
+
+    Возвращает DataFrame с колонками: ADMIN_AUDIT_COLUMNS.
+    """
+    stats = get_campaigns_daily_stat(date_from, date_to)
+    if stats.empty:
+        return pd.DataFrame(columns=ADMIN_AUDIT_COLUMNS)
+
+    camps = get_campaign_dict()[["campaign_id", "owner_id"]]
+    df = stats.merge(camps, on="campaign_id", how="left")
+    df = (
+        df.groupby(["date", "account_id", "source_type_id", "owner_id"], as_index=False)
+          [["impressions", "clicks", "costs_nds", "costs_without_nds"]]
+          .sum()
+    )
+    df["costs_nds"] = df["costs_nds"].round(2)  # десятичный тип, 2 знака после запятой
+    df["chef_flag"] = 1
+    return df.reindex(columns=ADMIN_AUDIT_COLUMNS).reset_index(drop=True)

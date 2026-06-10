@@ -72,16 +72,20 @@ Synchronous JSON API — no async submit/poll/download, no CSV/ZIP.
 | `get_campaigns_daily_stat(date_from, date_to)` | статистика по дням (кампании) | `POST /ads/v1/account/{accountID}/campaigns/{campaignID}/stats` |
 | `get_groups_daily_stat(date_from, date_to)` | статистика по дням (группы) | `POST /ads/v1/account/{accountID}/campaigns/{campaignID}/groups/stats` |
 | `get_creatives_daily_stat(date_from, date_to)` | статистика по дням (креативы) | `POST /ads/v1/account/{accountID}/campaigns/{campaignID}/creatives/stats` |
+| `get_admin_audit(date_from, date_to)` | сводный аудит по дням (admin_audit) | собственного эндпоинта нет — агрегат поверх campaigns stats |
 
-> Статус: скаффолд (Шаг 3). Все 6 функций — стабы с `NotImplementedError`; реализуются по одной в Шаге 4.
+> Статус: все 7 функций реализованы и проверены на живом API (Шаг 4 завершён; реестр — `info/01_functions_implemented.md`).
+
+**`get_admin_audit` (таблица admin_audit):** суммы `impressions`/`clicks`/`costs_nds`/`costs_without_nds`
+по `date × account_id × source_type_id × owner_id` (owner_id — join из справочника кампаний) + `chef_flag = 1`.
 
 **Правила запроса данных:**
 - **Справочники:** постраничный POST (`filter`/`limit`/`page`), сбор всех страниц в один DataFrame.
 - **Статистика:** Avito отдаёт `data[]` сразу за весь период (≤100 дней) одним запросом на сущность —
   разворачиваем по дням локально (не делаем запрос на каждый день). Для групп/креативов нужны ID
   из соответствующего справочника, сгруппированные по `campaign_id`.
-- **Охвата (reach) в API нет.** В выходных DataFrame оставлены: показы (`views`), клики (`clicks`),
-  расход (`costs_nds`/`spend_bonus`) и видео-метрики (`video_views_25/50/75/100`, `vtr`).
+- **Охвата (reach) в API нет.** В выходных DataFrame оставлены: показы (`impressions` ← API `views`),
+  клики (`clicks`), расход (`costs_nds`/`spend_bonus`) и видео-метрики (`video_views_25/50/75/100`, `vtr`).
   Метрики `ctr`, `cpm`, `cpc`, `q25`, `q50`, `q75` из API **не выгружаются** (исключены по требованию проекта).
   Охватных функций нет.
 
@@ -119,6 +123,8 @@ From `info/00_api_methods.md`:
 групп** по `group_id`
 
 **Для функций с расходами** (агентская комиссия `ak = 0.5`):
+- `costs_nds` — **десятичный тип (float), округление до 2 знаков** сразу после чтения из API,
+  до вычисления производных (в admin_audit — повторное округление после суммирования)
 - `costs_without_nds = costs_nds / (1 + ставка_НДС)` — **ставка зависит от года даты строки:
   год ≥ 2026 → 22% (делитель 1.22), раньше → 20% (делитель 1.20)**. Считается per-row по `date`
   (в одном отчёте могут быть дни разных лет). Реализация — `_vat_divisor()` в `avito_performance.py`.
@@ -129,7 +135,8 @@ From `info/00_api_methods.md`:
 - `id_key_camp = "1_" + campaign_id` — для всех функций
 - `id_key_group = id_key_camp + "_" + group_id` — для справочников групп и креативов
   (у креативов — join из справочника групп по `group_id`)
-- `id_key_ad = id_key_camp + "_" + creative_id` — **только для ad-level** функций (креативы = объявления)
+- `id_key_ad = id_key_group + "_" + creative_id` — **только для ad-level** функций (креативы = объявления);
+  в статистике `id_key_group` вычисляется как `id_key_camp + "_" + group_id`
 
 > **Важно про `costs_nds`:** в Avito денежные метрики (`spend`, `spendBonus`, `budget`, `price`,
 > `balance` …) — целые ₽ **с НДС** (подтверждено доками, раздел «Деньги и бонусы»), поэтому

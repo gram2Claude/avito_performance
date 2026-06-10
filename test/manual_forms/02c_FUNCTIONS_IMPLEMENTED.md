@@ -56,7 +56,7 @@ def {function_name}(
 | `ad_name` | string | `bannerName` (только ad-level) | Название объявления |
 | `views` | Int64 | `views` (integer) | Показы |
 | `clicks` | Int64 | `clicks` (integer) | Клики |
-| `costs_nds` | Float64 | `Расход, ₽, с НДС` (BANNER) / `Расход, ₽` (VIDEO_BANNER, без НДС) | Расход — **проверить источник API**, см. ниже |
+| `costs_nds` | Float64 | `Расход, ₽, с НДС` (BANNER) / `Расход, ₽` (VIDEO_BANNER, без НДС) | Расход — **проверить источник API**, см. ниже; десятичный тип, округление до 2 знаков |
 | `costs_without_nds` | Float64 | вычисляется: `costs_nds / (1 + ставка_НДС)` (по году даты: year≥2026 → 1.22, иначе 1.20) | Расход без НДС |
 | `ak` | Float64 | константа `0.5` | Агентская комиссия |
 | `costs_nds_ak` | Float64 | вычисляется: `costs_nds * (1 + ak)` | Расход с НДС и комиссией |
