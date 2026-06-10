@@ -41,6 +41,13 @@ def get_campaign_dict() -> pd.DataFrame:
 
 ### 3. Возвращаемый DataFrame
 
+> **Обновление 2026-06-10:** из выходного DataFrame удалены поля `status`, `budget`,
+> `payment_model`, `start_date`, `end_date`, `created_at`, `updated_at` (требование проекта).
+> Актуальный состав — **14 колонок**: `campaign_id, campaign_name, campaign_type, advertiser_id,
+> contract_id, manager_id, account_id, source_type_id, product_id, product_name, camp_type,
+> camp_category, id_key_camp, owner_id` — см. `info/01_functions_implemented.md`.
+> Таблицы ниже отражают первоначальную спецификацию на момент реализации.
+
 Все имена колонок — **snake_case**.
 
 **Поля из API** (элемент массива `campaigns[]`):

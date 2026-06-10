@@ -27,6 +27,10 @@ df = get_groups_daily_stat(DATE_FROM, DATE_TO)
 
 out_dir = PROJECT_ROOT / "raw_data"
 out_dir.mkdir(exist_ok=True)
+# в raw_data/ держим только последнюю выгрузку: имя содержит период,
+# поэтому файлы за прежние даты сами не перезаписываются — удаляем
+for old in out_dir.glob("get_groups_daily_stat_*.csv"):
+    old.unlink()
 out_path = out_dir / f"get_groups_daily_stat_{DATE_FROM}_{DATE_TO}.csv"
 df.to_csv(out_path, index=False, encoding="cp1251", errors="replace")
 

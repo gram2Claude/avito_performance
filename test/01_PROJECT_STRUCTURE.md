@@ -79,7 +79,8 @@ CLAUDE.md                     # инструкции для Claude Code (ген�
 ├── smoke_tests/              # smoke-тесты на реальном API (требуют .env)
 │   └── test_{FUNCTION_NAME}.py  # один файл на функцию
 │
-└── raw_data/                 # CSV-результаты успешных вызовов всех публичных функций (в .gitignore)
+└── raw_data/                 # CSV-результаты успешных вызовов всех публичных функций (в .gitignore);
+    │                         #   только последняя выгрузка каждой функции — старые периоды smoke-тест удаляет
     ├── raw_files/            # сырые CSV до парсинга (кэш; raw_{date_from}_{date_to}_{campaign_id}_{day}.csv)
     └── .gitkeep
 ```

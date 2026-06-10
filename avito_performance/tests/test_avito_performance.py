@@ -178,10 +178,13 @@ def test_get_campaign_dict(monkeypatch, sample_campaigns):
     assert len(df) == 2                                   # дубликат id удалён
     row = df[df.campaign_id == 297840407].iloc[0]
     assert row.campaign_name == "camp_med"               # выжил первый
-    assert row.start_date == "2026-06-05"                # Go-time → дата
-    assert row.created_at == "2026-06-05T15:54:49Z"      # ISO-Z без сдвига
+    assert row.campaign_type == "textImage"
+    assert row.advertiser_id == 574505283 and row.contract_id == 786670188
     assert row.account_id == 1 and row.source_type_id == 9
     assert row.id_key_camp == "1_297840407"
+    # поля удалены из справочника 2026-06-10
+    assert not ({"status", "budget", "payment_model", "start_date",
+                 "end_date", "created_at", "updated_at"} & set(df.columns))
 
 
 def test_get_campaign_dict_empty(monkeypatch):
@@ -192,26 +195,45 @@ def test_get_campaign_dict_empty(monkeypatch):
     assert list(df.columns) == ap.CAMPAIGN_DICT_COLUMNS
 
 
-def test_get_group_dict(monkeypatch, sample_groups):
+def test_get_group_dict(monkeypatch, sample_groups, stat_campaigns):
+    # get_group_dict дополнительно зовёт get_campaign_dict (camp_type/camp_category/owner_id)
     monkeypatch.setattr(ap.AvitoPerformanceClient, "_fetch_all_pages",
-                        lambda self, suffix, entity_key, filter_body=None: sample_groups)
+                        lambda self, suffix, entity_key, filter_body=None:
+                            stat_campaigns if suffix == "/campaigns" else sample_groups)
     df = ap.get_group_dict()
     assert list(df.columns) == ap.GROUP_DICT_COLUMNS
     row = df.iloc[0]
     assert row.group_id == 10 and row.campaign_id == 100
-    assert row.period_start_at == "2026-06-02T04:00:00Z"
+    assert row.status == "active" and row.payment_model == "CPC" and row.format == "native"
+    assert row.camp_type == "camp_test" and row.camp_category == "cat_test"  # из справочника кампаний
+    assert row.group_type == "other" and row.group_category == "other"       # дефолт
+    assert row.owner_id == 1                                                 # из справочника кампаний
     assert row.id_key_camp == "1_100"
+    assert row.id_key_group == "1_100_10"                # id_key_camp + "_" + group_id
     assert "id_key_ad" not in df.columns                 # у групп нет ad-level ключа
+    # поля удалены из справочника 2026-06-10
+    assert not ({"budget", "price", "price_control", "pace", "audience_type",
+                 "frequency_count", "frequency_period", "schedule_type",
+                 "period_start_at", "period_end_at", "have_creative",
+                 "created_at", "updated_at"} & set(df.columns))
 
 
-def test_get_creative_dict(monkeypatch, sample_creatives):
-    monkeypatch.setattr(ap.AvitoPerformanceClient, "_fetch_all_pages",
-                        lambda self, suffix, entity_key, filter_body=None: sample_creatives)
+def test_get_creative_dict(monkeypatch, sample_creatives, sample_groups, stat_campaigns):
+    # get_creative_dict зовёт get_group_dict (id_key_group/owner_id), тот — get_campaign_dict
+    def fake_fetch(self, suffix, entity_key, filter_body=None):
+        if suffix == "/campaigns":
+            return stat_campaigns
+        if suffix == "/groups":
+            return sample_groups
+        return sample_creatives
+    monkeypatch.setattr(ap.AvitoPerformanceClient, "_fetch_all_pages", fake_fetch)
     df = ap.get_creative_dict()
     assert list(df.columns) == ap.CREATIVE_DICT_COLUMNS
     row = df.iloc[0]
     assert row.creative_id == 1000 and row.group_id == 10 and row.campaign_id == 100
     assert row.id_key_ad == "1_100_1000"                 # ad-level ключ
+    assert row.id_key_group == "1_100_10"                # из справочника групп
+    assert row.owner_id == 1                             # из справочника групп
     assert row.button_text is None                       # отсутствует в API → None
 
 

@@ -61,29 +61,27 @@ TOKEN_REFRESH_LEEWAY_SEC = 60           # обновлять токен за 60 
 # Точный маппинг (особенно costs_nds ← spend и ставка НДС) подтверждается в spec каждой функции на Шаге 4.
 
 CAMPAIGN_DICT_COLUMNS = [
-    "campaign_id", "campaign_name", "status", "budget", "payment_model",
-    "campaign_type", "start_date", "end_date", "advertiser_id", "contract_id",
-    "manager_id", "created_at", "updated_at",
+    "campaign_id", "campaign_name", "campaign_type", "advertiser_id",
+    "contract_id", "manager_id",
     # обогащение (соглашение проекта):
     "account_id", "source_type_id", "product_id", "product_name",
     "camp_type", "camp_category", "id_key_camp", "owner_id",
 ]
 
 GROUP_DICT_COLUMNS = [
-    "group_id", "group_name", "campaign_id", "status", "payment_model", "budget",
-    "price", "price_control", "pace", "audience_type", "format", "frequency_count",
-    "frequency_period", "schedule_type", "period_start_at", "period_end_at",
-    "have_creative", "advertiser_id", "manager_id", "created_at", "updated_at",
-    # обогащение:
-    "account_id", "source_type_id", "id_key_camp",
+    "group_id", "group_name", "campaign_id", "status", "payment_model", "format",
+    "advertiser_id", "manager_id",
+    # обогащение (camp_type/camp_category/owner_id — из справочника кампаний):
+    "account_id", "source_type_id", "camp_type", "camp_category",
+    "group_type", "group_category", "id_key_camp", "id_key_group", "owner_id",
 ]
 
 CREATIVE_DICT_COLUMNS = [
     "creative_id", "creative_name", "group_id", "campaign_id", "status",
     "payment_model", "campaign_type", "title", "description", "button_text",
     "link", "origin_url", "preview_url", "landing_id", "advertiser_id", "manager_id",
-    # обогащение (ad-level → id_key_ad):
-    "account_id", "source_type_id", "id_key_camp", "id_key_ad",
+    # обогащение (ad-level → id_key_ad; id_key_group/owner_id — из справочника групп):
+    "account_id", "source_type_id", "id_key_camp", "id_key_group", "id_key_ad", "owner_id",
 ]
 
 # Метрики статистики (StatsData), общие для всех трёх stat-функций.
@@ -97,19 +95,19 @@ _STAT_METRICS = [
 _COST_ENRICHMENT = ["costs_without_nds", "ak", "costs_nds_ak", "costs_without_nds_ak"]
 
 CAMPAIGNS_STAT_COLUMNS = (
-    ["date", "campaign_id", "campaign_name", "payment_model", "campaign_type"]
+    ["date", "campaign_id", "payment_model", "campaign_type"]
     + _STAT_METRICS + _COST_ENRICHMENT
     + ["account_id", "source_type_id", "id_key_camp"]
 )
 
 GROUPS_STAT_COLUMNS = (
-    ["date", "campaign_id", "group_id", "group_name"]
+    ["date", "campaign_id", "group_id"]
     + _STAT_METRICS + _COST_ENRICHMENT
     + ["account_id", "source_type_id", "id_key_camp"]
 )
 
 CREATIVES_STAT_COLUMNS = (
-    ["date", "campaign_id", "group_id", "creative_id", "creative_name"]
+    ["date", "campaign_id", "group_id", "creative_id"]
     + _STAT_METRICS + _COST_ENRICHMENT
     + ["account_id", "source_type_id", "id_key_camp", "id_key_ad"]
 )
@@ -427,19 +425,10 @@ def get_campaign_dict() -> pd.DataFrame:
         {
             "campaign_id": _pick(e, "id"),
             "campaign_name": _pick(e, "name"),
-            "status": _pick(e, "status"),
-            "budget": _pick(e, "budget"),
-            "payment_model": _pick(e, "paymentModel"),
             "campaign_type": _pick(e, "campaignType"),
-            # start/end — период размещения, нормализуем к дате (источник в Go-формате)
-            "start_date": _day_from_timestamp(_pick(e, "startDate")),
-            "end_date": _day_from_timestamp(_pick(e, "endDate")),
             "advertiser_id": _pick(e, "advertiserId"),
             "contract_id": _pick(e, "contractId"),
             "manager_id": _pick(e, "managerID"),   # внимание: в API заглавные ID
-            # created/updated — таймстампы, нормализуем к ISO 8601 UTC
-            "created_at": _normalize_iso_dt(_pick(e, "createdAt")),
-            "updated_at": _normalize_iso_dt(_pick(e, "updatedAt")),
         }
         for e in entities
     ])
@@ -476,22 +465,9 @@ def get_group_dict() -> pd.DataFrame:
             "campaign_id": _pick(e, "campaignID"),
             "status": _pick(e, "status"),
             "payment_model": _pick(e, "paymentModel"),
-            "budget": _pick(e, "budget"),
-            "price": _pick(e, "price"),
-            "price_control": _pick(e, "priceControl"),
-            "pace": _pick(e, "pace"),
-            "audience_type": _pick(e, "audienceType"),
             "format": _pick(e, "format"),
-            "frequency_count": _pick(e, "frequencyCount"),
-            "frequency_period": _pick(e, "frequencyPeriod"),
-            "schedule_type": _pick(e, "scheduleType"),
-            "period_start_at": _normalize_iso_dt(_pick(e, "periodStartAt")),
-            "period_end_at": _normalize_iso_dt(_pick(e, "periodEndAt")),
-            "have_creative": _pick(e, "haveCreative"),
             "advertiser_id": _pick(e, "advertiserID"),
             "manager_id": _pick(e, "managerID"),
-            "created_at": _normalize_iso_dt(_pick(e, "createdAt")),
-            "updated_at": _normalize_iso_dt(_pick(e, "updatedAt")),
         }
         for e in entities
     ])
@@ -501,7 +477,13 @@ def get_group_dict() -> pd.DataFrame:
 
     df["account_id"] = 1
     df["source_type_id"] = 9
+    # camp_type / camp_category / owner_id — из справочника кампаний (join по campaign_id)
+    camps = get_campaign_dict()[["campaign_id", "camp_type", "camp_category", "owner_id"]]
+    df = df.merge(camps, on="campaign_id", how="left")
+    df["group_type"] = "other"
+    df["group_category"] = "other"
     df["id_key_camp"] = "1_" + df["campaign_id"].astype(str)
+    df["id_key_group"] = df["id_key_camp"] + "_" + df["group_id"].astype(str)
 
     return df.reindex(columns=GROUP_DICT_COLUMNS).reset_index(drop=True)
 
@@ -543,6 +525,9 @@ def get_creative_dict() -> pd.DataFrame:
 
     df["account_id"] = 1
     df["source_type_id"] = 9
+    # id_key_group / owner_id — из справочника групп (join по group_id)
+    groups = get_group_dict()[["group_id", "id_key_group", "owner_id"]]
+    df = df.merge(groups, on="group_id", how="left")
     df["id_key_camp"] = "1_" + df["campaign_id"].astype(str)
     df["id_key_ad"] = df["id_key_camp"] + "_" + df["creative_id"].astype(str)
 
@@ -576,7 +561,6 @@ def get_campaigns_daily_stat(date_from: str, date_to: str) -> pd.DataFrame:
             rows.append({
                 "date": _day_from_timestamp(d.get("timestamp")),
                 "campaign_id": cid,
-                "campaign_name": _pick(camp, "name") or _pick(c, "name"),
                 "payment_model": _pick(camp, "paymentModel") or _pick(c, "paymentModel"),
                 "campaign_type": _pick(camp, "campaignType") or _pick(c, "campaignType"),
                 **_metric_cols(d),
@@ -603,13 +587,11 @@ def get_groups_daily_stat(date_from: str, date_to: str) -> pd.DataFrame:
 
     # Сгруппировать ID групп по кампании (stats-метод вызывается на уровне кампании)
     gids_by_camp: dict[int, list[int]] = {}
-    name_by_gid: dict[int, Any] = {}
     for g in groups:
         gid, camp = _pick(g, "id"), _pick(g, "campaignID")
         if gid is None or camp is None:
             continue
         gids_by_camp.setdefault(camp, []).append(gid)
-        name_by_gid[gid] = _pick(g, "name")
 
     rows: list[dict[str, Any]] = []
     for camp, gids in tqdm(gids_by_camp.items(), desc="Статистика по группам", unit="камп"):
@@ -621,7 +603,6 @@ def get_groups_daily_stat(date_from: str, date_to: str) -> pd.DataFrame:
                     "date": _day_from_timestamp(d.get("timestamp")),
                     "campaign_id": camp,
                     "group_id": gid,
-                    "group_name": _pick(grp, "name") or name_by_gid.get(gid),
                     **_metric_cols(d),
                 })
 
@@ -646,13 +627,11 @@ def get_creatives_daily_stat(date_from: str, date_to: str) -> pd.DataFrame:
 
     # Сгруппировать ID креативов по кампании
     crids_by_camp: dict[int, list[int]] = {}
-    name_by_crid: dict[int, Any] = {}
     for c in creatives:
         crid, camp = _pick(c, "id"), _pick(c, "campaignID")
         if crid is None or camp is None:
             continue
         crids_by_camp.setdefault(camp, []).append(crid)
-        name_by_crid[crid] = _pick(c, "name")
 
     rows: list[dict[str, Any]] = []
     for camp, crids in tqdm(crids_by_camp.items(), desc="Статистика по креативам", unit="камп"):
@@ -665,7 +644,6 @@ def get_creatives_daily_stat(date_from: str, date_to: str) -> pd.DataFrame:
                     "campaign_id": camp,
                     "group_id": _pick(cr, "groupId", "groupID"),
                     "creative_id": crid,
-                    "creative_name": _pick(cr, "name") or name_by_crid.get(crid),
                     **_metric_cols(d),
                 })
 

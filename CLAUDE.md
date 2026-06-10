@@ -111,6 +111,13 @@ From `info/00_api_methods.md`:
 **Для справочников:** дополнительно (для campaign-уровня) `product_id = 1`, `product_name = "prod_test"`,
 `camp_type = "camp_test"`, `camp_category = "cat_test"`, `owner_id = 1`
 
+**Для справочника групп** (group-уровень): `camp_type`, `camp_category`, `owner_id` — **join из
+справочника кампаний** по `campaign_id` (не константы); `group_type = "other"`,
+`group_category = "other"` — дефолт
+
+**Для справочника креативов** (ad-уровень): `id_key_group`, `owner_id` — **join из справочника
+групп** по `group_id`
+
 **Для функций с расходами** (агентская комиссия `ak = 0.5`):
 - `costs_without_nds = costs_nds / (1 + ставка_НДС)` — **ставка зависит от года даты строки:
   год ≥ 2026 → 22% (делитель 1.22), раньше → 20% (делитель 1.20)**. Считается per-row по `date`
@@ -120,6 +127,8 @@ From `info/00_api_methods.md`:
 
 **Составные ключи:**
 - `id_key_camp = "1_" + campaign_id` — для всех функций
+- `id_key_group = id_key_camp + "_" + group_id` — для справочников групп и креативов
+  (у креативов — join из справочника групп по `group_id`)
 - `id_key_ad = id_key_camp + "_" + creative_id` — **только для ad-level** функций (креативы = объявления)
 
 > **Важно про `costs_nds`:** в Avito денежные метрики (`spend`, `spendBonus`, `budget`, `price`,
