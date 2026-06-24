@@ -106,10 +106,10 @@ Synchronous JSON API — no async submit/poll/download, no CSV/ZIP.
   разворачиваем по дням локально (не делаем запрос на каждый день). Для групп/креативов нужны ID
   из соответствующего справочника, сгруппированные по `campaign_id`.
 - **Охвата (reach) в API нет.** В выходных DataFrame оставлены: показы (`impressions` ← API `views`),
-  клики (`clicks`), расход (`costs_nds`/`spend_bonus`) и видео-метрики (`video_views_25/50/75/100`, `vtr`).
+  клики (`clicks`), расход (`costs_nds`/`spend_bonus`) и видео-метрики (`video_views_25/50/75/100`).
 - **Полей названий в статистике нет** (`campaign_name`/`group_name`/`creative_name` удалены по
   требованию проекта) — имена джойнить из справочников по `campaign_id`/`group_id`/`creative_id`.
-  Метрики `ctr`, `cpm`, `cpc`, `q25`, `q50`, `q75` из API **не выгружаются** (исключены по требованию проекта).
+  Метрики `ctr`, `cpm`, `cpc`, `q25`, `q50`, `q75`, `vtr` из API **не выгружаются** (исключены по требованию проекта).
   Охватных функций нет.
 
 **Цепочка вызовов справочников (join-поля):** `get_creative_dict` → вызывает `get_group_dict`

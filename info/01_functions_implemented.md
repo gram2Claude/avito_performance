@@ -186,12 +186,12 @@ manager_id←managerID`. Обогащение (ad-level): `account_id=1, source_
 - Перебор: список кампаний из `_fetch_all_pages("/campaigns")` → по 1 вызову на кампанию.
 - Берётся `campaign.data[]` (по дням); `groups[]`/`creatives[]` из ответа не используются здесь.
 
-### Поля выходного DataFrame (20 колонок)
+### Поля выходного DataFrame (19 колонок)
 Ключи: `date←campaign.data[].timestamp[:10], campaign_id, payment_model, campaign_type`
 (`campaign_name` удалён 2026-06-10; название кампании доступно через `get_campaign_dict` по `campaign_id`).
-Метрики StatsData (без `ctr`/`cpm`/`cpc`/`q25`/`q50`/`q75` — исключены по требованию проекта):
+Метрики StatsData (без `ctr`/`cpm`/`cpc`/`q25`/`q50`/`q75`/`vtr` — исключены по требованию проекта):
 `impressions←views (переименовано 2026-06-10), clicks, costs_nds←spend, spend_bonus←spendBonus,
-video_views_25/50/75/100←videoViews*, vtr`.
+video_views_25/50/75/100←videoViews*`.
 Обогащение расходов:
 `costs_without_nds=costs_nds/(1.22 при year≥2026, иначе 1.20), ak=0.5, costs_nds_ak=costs_nds*1.5,
 costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_key_camp`.
@@ -206,7 +206,8 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
   считается per-row через `_vat_divisor(df["date"])` (в одном отчёте возможны дни разных лет).
 - `timestamp` в `data[]` приходит с офсетом **+03:00** (МСК); дата берётся как первые 10 символов
   (день в МСК). `totalData` (агрегат за период, без дневного `timestamp`) в DataFrame **не выгружается**.
-- Видео-метрики (`video_views_*`, `q*`, `vtr`) приходят только у видео-кампаний; у textImage → `None`.
+- Видео-метрики (`video_views_*`) приходят только у видео-кампаний; у textImage → `None`.
+  `q*` и `vtr` из API **не выгружаем** (исключены по требованию проекта).
 - Кампании без активности в периоде (draft/finished вне периода) → пустой `data[]`, строк не дают
   (ошибки не вызывают). На тестовом аккаунте за 2026-05-01…06-08: **93 строки**.
 
@@ -217,6 +218,7 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 | 2026-06-10 | Удалено поле `campaign_name` из выходного DataFrame | Требование проекта; название кампании остаётся в справочнике `get_campaign_dict` |
 | 2026-06-10 | Метрика `views` переименована в `impressions` (источник в API — `views`) | Требование проекта; общее для всех 3 stat-функций (`_STAT_METRICS`/`_STAT_METRIC_KEYS`) |
 | 2026-06-10 | `costs_nds` — десятичный тип (float), округление до 2 знаков (`_apply_stat_enrichment`) | Требование проекта; общее для всех stat-функций и admin_audit |
+| 2026-06-24 | Удалена метрика `vtr` из выходного DataFrame; из API не выгружается | Требование проекта; общее для всех 3 stat-функций (`_STAT_METRICS`/`_STAT_METRIC_KEYS`) |
 
 ---
 
@@ -232,7 +234,7 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 - Перебор: группы из `_fetch_all_pages("/groups")` группируются по `campaignID`; на каждую кампанию —
   один вызов со списком её `groupIDs`. Берётся `groups[].data[]`.
 
-### Поля выходного DataFrame (19 колонок)
+### Поля выходного DataFrame (18 колонок)
 Ключи: `date, campaign_id (из контекста перебора), group_id←groups[].id`
 (`group_name` удалён 2026-06-10; название группы доступно через `get_group_dict` по `group_id`).
 Метрики StatsData + обогащение расходов — как в `get_campaigns_daily_stat` (без `id_key_ad`).
@@ -250,6 +252,7 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 | 2026-06-10 | Удалено поле `group_name` из выходного DataFrame | Требование проекта; название группы остаётся в справочнике `get_group_dict` |
 | 2026-06-10 | Метрика `views` переименована в `impressions` | Требование проекта; общее для всех 3 stat-функций |
 | 2026-06-10 | `costs_nds` — десятичный тип, округление до 2 знаков | Требование проекта; общее для всех stat-функций |
+| 2026-06-24 | Удалена метрика `vtr` из выходного DataFrame; из API не выгружается | Требование проекта; общее для всех 3 stat-функций |
 
 ---
 
@@ -265,7 +268,7 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 - Перебор: креативы из `_fetch_all_pages("/creatives")` группируются по `campaignID`; на каждую кампанию —
   один вызов со списком её `creativeIDs`. Берётся `creatives[].data[]`.
 
-### Поля выходного DataFrame (21 колонка)
+### Поля выходного DataFrame (20 колонок)
 Ключи: `date, campaign_id, group_id←creatives[].groupId, creative_id←creatives[].id`
 (`creative_name` удалён 2026-06-10; название креатива доступно через `get_creative_dict` по `creative_id`).
 Метрики StatsData + обогащение расходов; ad-level → дополнительно
@@ -286,6 +289,7 @@ costs_without_nds_ak=costs_without_nds*1.5, account_id=1, source_type_id=9, id_k
 | 2026-06-10 | Метрика `views` переименована в `impressions` | Требование проекта; общее для всех 3 stat-функций |
 | 2026-06-10 | `id_key_ad` теперь = `id_key_group+"_"+creative_id` (было `id_key_camp+"_"+creative_id`) | Требование проекта |
 | 2026-06-10 | `costs_nds` — десятичный тип, округление до 2 знаков | Требование проекта; общее для всех stat-функций |
+| 2026-06-24 | Удалена метрика `vtr` из выходного DataFrame; из API не выгружается | Требование проекта; общее для всех 3 stat-функций |
 
 ---
 

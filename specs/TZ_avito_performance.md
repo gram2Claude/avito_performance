@@ -117,11 +117,11 @@ API **синхронный, формат JSON** — без submit/poll/download,
   `userId` — но `managerID`, `campaignID`, `advertiserID` (у групп/креативов);
   в списке креативов поле группы — `groupID`, а в ответе `creatives/stats` — `groupId`.
   Обязателен helper «взять первый существующий ключ»: `pick(row, "groupID", "groupId")`.
-- **Видео-метрики** (`videoViews25/50/75/100`, `vtr`) приходят только у видео-кампаний;
+- **Видео-метрики** (`videoViews25/50/75/100`) приходят только у видео-кампаний;
   у `textImage` отсутствуют → в выгрузке `NULL`.
 - **`filter: {}`** в справочниках возвращает сущности **всех** статусов
   (active/finished/draft/…). Поле `haveCreative` у групп в реальном ответе отсутствует.
-- **Метрики `ctr`, `cpm`, `cpc`, `q25`, `q50`, `q75` из API НЕ выгружаются** —
+- **Метрики `ctr`, `cpm`, `cpc`, `q25`, `q50`, `q75`, `vtr` из API НЕ выгружаются** —
   исключены по требованию проекта. Охватных метрик (reach) в API нет вовсе.
 
 ### 3.7. Обогащение строк (соглашение проекта)
@@ -222,10 +222,10 @@ landing_id←landingID, advertiser_id←advertiserID, manager_id←managerID` +
 ### 4.4. get_campaigns_daily_stat(date_from, date_to) — статистика по кампаниям
 
 Перебор кампаний из справочника → на каждую `POST .../campaigns/{id}/stats` с
-`{"dateFrom", "dateTo"}`; разворачивается `campaign.data[]`. 20 колонок:
+`{"dateFrom", "dateTo"}`; разворачивается `campaign.data[]`. 19 колонок:
 `date` (из `timestamp[:10]`), `campaign_id`, `payment_model`, `campaign_type`,
 метрики `impressions←views, clicks, costs_nds←spend, spend_bonus←spendBonus,
-video_views_25/50/75/100←videoViews*, vtr`, расходные производные
+video_views_25/50/75/100←videoViews*`, расходные производные
 `costs_without_nds, ak, costs_nds_ak, costs_without_nds_ak`, `account_id`,
 `source_type_id`, `id_key_camp`.
 
@@ -237,14 +237,14 @@ video_views_25/50/75/100←videoViews*, vtr`, расходные произво�
 
 ID групп из справочника группируются по `campaign_id`; на кампанию один
 `POST .../groups/stats` с `{"groupIDs": [...], "dateFrom", "dateTo"}`;
-разворачивается `groups[].data[]`. 19 колонок: как 4.4, но вместо
+разворачивается `groups[].data[]`. 18 колонок: как 4.4, но вместо
 `payment_model`/`campaign_type` — `group_id` (название группы не выгружается).
 
 ### 4.6. get_creatives_daily_stat(date_from, date_to) — статистика по креативам
 
 ID креативов группируются по `campaign_id`; на кампанию один
 `POST .../creatives/stats` с `{"creativeIDs": [...], "dateFrom", "dateTo"}`;
-разворачивается `creatives[].data[]`. 21 колонка: `date, campaign_id,
+разворачивается `creatives[].data[]`. 20 колонок: `date, campaign_id,
 group_id←creatives[].groupId (⚠️ строчная d), creative_id` + метрики и расходные
 производные + `account_id, source_type_id, id_key_camp, id_key_ad`, где
 `id_key_ad = id_key_camp + "_" + group_id + "_" + creative_id`.
@@ -430,7 +430,7 @@ POST .../campaigns/{campaignID}/creatives/stats
 | 2026-06-02 | 563334516 | CPC | textImage | 1048189 | 1954 | 13511.0 | 11074.59 | 0.5 | 20266.5 | 16611.89 | 1_563334516 |
 | 2026-06-02 | 534075762 | CPM | textImage | 109316 | 196 | 23393.0 | 19174.59 | 0.5 | 35089.5 | 28761.89 | 1_534075762 |
 
-(`spend_bonus`, `video_views_25/50/75/100`, `vtr`, `account_id=1`, `source_type_id=9` опущены для компактности.)
+(`spend_bonus`, `video_views_25/50/75/100`, `account_id=1`, `source_type_id=9` опущены для компактности.)
 
 ### 7.5. get_groups_daily_stat / get_creatives_daily_stat
 

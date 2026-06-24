@@ -89,9 +89,9 @@ def test_metric_cols_mapping_and_excludes_removed():
     d = {"views": 1, "clicks": 2, "spend": 3, "spendBonus": 4, "vtr": 0.5,
          "ctr": 9, "cpm": 9, "cpc": 9, "q25": 9, "q50": 9, "q75": 9}
     m = ap._metric_cols(d)
-    assert m["costs_nds"] == 3 and m["spend_bonus"] == 4 and m["impressions"] == 1 and m["vtr"] == 0.5
+    assert m["costs_nds"] == 3 and m["spend_bonus"] == 4 and m["impressions"] == 1
     assert m["video_views_25"] is None          # отсутствует в источнике → None
-    for removed in ("ctr", "cpm", "cpc", "q25", "q50", "q75"):
+    for removed in ("ctr", "cpm", "cpc", "q25", "q50", "q75", "vtr"):
         assert removed not in m                  # удалённые метрики не извлекаются
 
 

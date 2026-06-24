@@ -88,7 +88,6 @@ CREATIVE_DICT_COLUMNS = [
 _STAT_METRICS = [
     "impressions", "clicks", "costs_nds", "spend_bonus",
     "video_views_25", "video_views_50", "video_views_75", "video_views_100",
-    "vtr",
 ]
 # costs_nds ← API spend (целые ₽ с НДС); spend_bonus ← spendBonus. Подтвердить в Шаге 4.
 _COST_ENRICHMENT = ["costs_without_nds", "ak", "costs_nds_ak", "costs_without_nds_ak"]
@@ -371,13 +370,12 @@ def _parse_num(value: Any) -> float | None:
 
 # Маппинг полей StatsData (API → колонка DataFrame). Видео-поля отсутствуют у
 # не-видео кампаний → приходит None. costs_nds ← spend (целые ₽ с НДС).
-# ctr/cpm/cpc/q25/q50/q75 из API не выгружаем (исключены по требованию проекта).
+# ctr/cpm/cpc/q25/q50/q75/vtr из API не выгружаем (исключены по требованию проекта).
 _STAT_METRIC_KEYS = [
     ("impressions", "views"), ("clicks", "clicks"),
     ("costs_nds", "spend"), ("spend_bonus", "spendBonus"),
     ("video_views_25", "videoViews25"), ("video_views_50", "videoViews50"),
     ("video_views_75", "videoViews75"), ("video_views_100", "videoViews100"),
-    ("vtr", "vtr"),
 ]
 
 

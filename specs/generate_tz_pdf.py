@@ -239,11 +239,11 @@ BUL([
     "Неоднородный регистр ключей: advertiserId/contractId, но managerID/campaignID/advertiserID; "
     "в списке креативов groupID, в creatives/stats — groupId. Обязателен helper "
     'pick(row, "groupID", "groupId") — первый существующий ключ.',
-    "Видео-метрики (videoViews25/50/75/100, vtr) — только у видео-кампаний; "
+    "Видео-метрики (videoViews25/50/75/100) — только у видео-кампаний; "
     "у textImage отсутствуют, в выгрузке NULL.",
     'filter: {} в справочниках возвращает сущности всех статусов. Поле haveCreative '
     "у групп в реальном ответе отсутствует.",
-    "Метрики ctr, cpm, cpc, q25, q50, q75 из API НЕ выгружаются (исключены по требованию "
+    "Метрики ctr, cpm, cpc, q25, q50, q75, vtr из API НЕ выгружаются (исключены по требованию "
     "проекта). Охватных метрик (reach) в API нет вовсе.",
 ])
 
@@ -340,10 +340,10 @@ BUL([
 
 H2("4.4. get_campaigns_daily_stat(date_from, date_to) — статистика по кампаниям")
 P("Перебор кампаний из справочника: на каждую POST .../campaigns/{id}/stats с "
-  '{"dateFrom", "dateTo"}; разворачивается campaign.data[]. 20 колонок: date '
+  '{"dateFrom", "dateTo"}; разворачивается campaign.data[]. 19 колонок: date '
   "(timestamp[:10]), campaign_id, payment_model, campaign_type, метрики impressions "
   "(из API views), clicks, costs_nds (из spend), spend_bonus (spendBonus), "
-  "video_views_25/50/75/100 (videoViews*), vtr, производные costs_without_nds, ak, "
+  "video_views_25/50/75/100 (videoViews*), производные costs_without_nds, ak, "
   "costs_nds_ak, costs_without_nds_ak, account_id, source_type_id, id_key_camp.")
 P("ВАЖНО: поля названия (campaign_name) в статистике нет — имена джойнить из справочника "
   "по campaign_id. Метрика показов называется impressions (в API — views).")
@@ -351,13 +351,13 @@ P("ВАЖНО: поля названия (campaign_name) в статистике
 H2("4.5. get_groups_daily_stat(date_from, date_to) — статистика по группам")
 P("ID групп из справочника группируются по campaign_id; на кампанию один POST "
   '.../groups/stats с {"groupIDs": [...], "dateFrom", "dateTo"}; разворачивается '
-  "groups[].data[]. 19 колонок: как 4.4, но вместо payment_model/campaign_type — "
+  "groups[].data[]. 18 колонок: как 4.4, но вместо payment_model/campaign_type — "
   "group_id (название группы не выгружается).")
 
 H2("4.6. get_creatives_daily_stat(date_from, date_to) — статистика по креативам")
 P("ID креативов группируются по campaign_id; на кампанию один POST .../creatives/stats "
   'с {"creativeIDs": [...], "dateFrom", "dateTo"}; разворачивается creatives[].data[]. '
-  "21 колонка: date, campaign_id, group_id (из creatives[].groupId — строчная d!), "
+  "20 колонок: date, campaign_id, group_id (из creatives[].groupId — строчная d!), "
   "creative_id + метрики и производные + account_id, source_type_id, id_key_camp, "
   'id_key_ad = id_key_camp + "_" + group_id + "_" + creative_id.')
 
@@ -545,7 +545,7 @@ TABLE(
 )
 P("Производные и константы (для тех же 2 строк): ak=0.5; costs_nds_ak: 20266.5 / 35089.5; "
   "costs_without_nds_ak: 16611.89 / 28761.89; account_id=1; source_type_id=9; "
-  "id_key_camp: 1_563334516 / 1_534075762. Поля spend_bonus, video_views_25/50/75/100, vtr "
+  "id_key_camp: 1_563334516 / 1_534075762. Поля spend_bonus, video_views_25/50/75/100 "
   "присутствуют в выгрузке (у textImage-кампаний видео-метрики NULL).")
 
 H2("7.5. get_groups_daily_stat / get_creatives_daily_stat")
