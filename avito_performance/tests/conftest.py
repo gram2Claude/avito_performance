@@ -82,13 +82,17 @@ def stat_campaigns():
 
 
 def _two_day_data():
-    """Два дня StatsData: 2026 (НДС 22%) и 2025 (НДС 20%). spend подобран так,
-    что costs_without_nds в обоих случаях = 1000.0."""
+    """Два дня StatsData: 2026 (НДС 22%) и 2025 (НДС 20%).
+
+    Деньги API отдаёт в КОПЕЙКАХ (`spendKopecs`/`spendBonusKopecs`), поэтому
+    значения подобраны так, что после перевода в рубли costs_nds = 1220.00 / 1200.00,
+    а costs_without_nds в обоих случаях = 1000.0.
+    """
     return [
         {"timestamp": "2026-06-05T00:00:00+03:00", "views": 1000, "clicks": 50,
-         "spend": 1220, "spendBonus": 0},                       # 1220/1.22 = 1000
+         "spendKopecs": 122000, "spendBonusKopecs": 0},         # 1220.00/1.22 = 1000
         {"timestamp": "2025-06-05T00:00:00+03:00", "views": 2000, "clicks": 10,
-         "spend": 1200, "spendBonus": 7},                       # 1200/1.20 = 1000
+         "spendKopecs": 120000, "spendBonusKopecs": 700},       # 1200.00/1.20 = 1000
     ]
 
 

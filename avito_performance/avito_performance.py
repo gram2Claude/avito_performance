@@ -369,19 +369,44 @@ def _parse_num(value: Any) -> float | None:
 
 
 # Маппинг полей StatsData (API → колонка DataFrame). Видео-поля отсутствуют у
-# не-видео кампаний → приходит None. costs_nds ← spend (целые ₽ с НДС).
+# не-видео кампаний → приходит None.
+# ДЕНЬГИ ПРИХОДЯТ В КОПЕЙКАХ: costs_nds ← spendKopecs, spend_bonus ← spendBonusKopecs;
+# оба делятся на 100 → рубли с копейками (десятичные). Прежние рублёвые поля
+# `spend`/`spendBonus` из ответа исчезли и намеренно НЕ читаются: рубли, принятые
+# за копейки, занизили бы расход в 100 раз молча — пустое значение честнее.
 # ctr/cpm/cpc/q25/q50/q75/vtr из API не выгружаем (исключены по требованию проекта).
 _STAT_METRIC_KEYS = [
     ("impressions", "views"), ("clicks", "clicks"),
-    ("costs_nds", "spend"), ("spend_bonus", "spendBonus"),
+    ("costs_nds", "spendKopecs"), ("spend_bonus", "spendBonusKopecs"),
     ("video_views_25", "videoViews25"), ("video_views_50", "videoViews50"),
     ("video_views_75", "videoViews75"), ("video_views_100", "videoViews100"),
 ]
 
+# Колонки, значения которых API отдаёт в копейках → переводим в рубли.
+_KOPECS_COLUMNS = frozenset({"costs_nds", "spend_bonus"})
+
+
+def _kopecs_to_rubles(value: Any) -> float | None:
+    """Копейки → рубли: делит на 100 и округляет до 2 знаков (десятичное значение).
+
+    Отсутствующее/нечисловое значение → None (не 0.0): «поля не было» и
+    «расход нулевой» — разные факты, и различимость здесь важнее удобства.
+    """
+    num = _parse_num(value)
+    return None if num is None else round(num / 100, 2)
+
 
 def _metric_cols(data_item: dict[str, Any]) -> dict[str, Any]:
-    """Достаёт метрики StatsData из одного элемента data[] по маппингу."""
-    return {col: data_item.get(api) for col, api in _STAT_METRIC_KEYS}
+    """Достаёт метрики StatsData из одного элемента data[] по маппингу.
+
+    Денежные метрики (см. `_KOPECS_COLUMNS`) переводятся из копеек в рубли,
+    поэтому возвращаемые значения — ровно то, что попадёт в DataFrame.
+    """
+    cols: dict[str, Any] = {}
+    for col, api in _STAT_METRIC_KEYS:
+        value = data_item.get(api)
+        cols[col] = _kopecs_to_rubles(value) if col in _KOPECS_COLUMNS else value
+    return cols
 
 
 def _vat_divisor(date_series: pd.Series) -> pd.Series:

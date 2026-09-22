@@ -86,13 +86,42 @@ def test_date_range_inclusive_and_reversed():
 
 
 def test_metric_cols_mapping_and_excludes_removed():
-    d = {"views": 1, "clicks": 2, "spend": 3, "spendBonus": 4, "vtr": 0.5,
+    d = {"views": 1, "clicks": 2, "spendKopecs": 300, "spendBonusKopecs": 400, "vtr": 0.5,
          "ctr": 9, "cpm": 9, "cpc": 9, "q25": 9, "q50": 9, "q75": 9}
     m = ap._metric_cols(d)
     assert m["costs_nds"] == 3 and m["spend_bonus"] == 4 and m["impressions"] == 1
     assert m["video_views_25"] is None          # отсутствует в источнике → None
     for removed in ("ctr", "cpm", "cpc", "q25", "q50", "q75", "vtr"):
         assert removed not in m                  # удалённые метрики не извлекаются
+
+
+def test_metric_cols_converts_kopecs_to_rubles():
+    """Деньги приходят в копейках → в DataFrame рубли с копейками (десятичные).
+
+    Падает, если из `_metric_cols` убрать деление на 100 или сделать его
+    целочисленным (`//`) — дробная часть обязана дойти до колонки.
+    """
+    m = ap._metric_cols({"spendKopecs": 122045, "spendBonusKopecs": 55})
+    assert m["costs_nds"] == pytest.approx(1220.45)
+    assert m["spend_bonus"] == pytest.approx(0.55)
+    assert isinstance(m["costs_nds"], float)
+
+
+def test_metric_cols_ignores_legacy_rouble_spend_field():
+    """Старое рублёвое поле `spend` больше не читается.
+
+    Если бы оно продолжало подхватываться, рубли молча проехали бы как копейки
+    (расход занижен в 100 раз). Пустое значение видно, тихо неверное — нет.
+    """
+    m = ap._metric_cols({"views": 1, "spend": 1220, "spendBonus": 7})
+    assert m["costs_nds"] is None
+    assert m["spend_bonus"] is None
+
+
+def test_metric_cols_missing_money_keys_stay_none():
+    """Отсутствующие денежные поля остаются None, а не превращаются в 0.0."""
+    m = ap._metric_cols({"views": 5, "clicks": 1})
+    assert m["costs_nds"] is None and m["spend_bonus"] is None
 
 
 def test_apply_stat_enrichment_year_based_vat():
@@ -248,13 +277,40 @@ def test_get_campaigns_daily_stat(monkeypatch, stat_campaigns, campaign_stats_re
     assert list(df.columns) == ap.CAMPAIGNS_STAT_COLUMNS
     assert len(df) == 2                                   # два дня данных
     assert set(df["date"]) == {"2026-06-05", "2025-06-05"}
-    assert list(df["costs_nds"]) == [1220.0, 1200.0]      # costs_nds ← spend
+    # costs_nds ← spendKopecs/100 (122000 коп = 1220.00 ₽, 120000 коп = 1200.00 ₽)
+    assert list(df["costs_nds"]) == [1220.0, 1200.0]
     assert df["costs_nds"].dtype == "float64"             # десятичный тип, 2 знака
+    assert list(df["spend_bonus"]) == [0.0, 7.0]          # spendBonusKopecs/100
     # НДС по году: оба → 1000.0
     assert df["costs_without_nds"].round(2).tolist() == [1000.0, 1000.0]
     assert (df["id_key_camp"] == "1_100").all()
     for removed in ("ctr", "cpm", "cpc", "q25", "q50", "q75"):
         assert removed not in df.columns
+
+
+def test_campaigns_stat_keeps_kopecs_precision(monkeypatch, stat_campaigns):
+    """Сквозная проверка: дробная часть копеек доезжает до выходного DataFrame.
+
+    Падает, если деление на 100 убрать (получим 122045.0) или сделать
+    целочисленным (получим 1220.0 вместо 1220.45).
+    """
+    resp = {
+        "campaign": {
+            "id": 100, "paymentModel": "CPC", "campaignType": "textImage",
+            "data": [{"timestamp": "2026-06-05T00:00:00+03:00", "views": 10, "clicks": 1,
+                      "spendKopecs": 122045, "spendBonusKopecs": 55}],
+        }
+    }
+    monkeypatch.setattr(ap.AvitoPerformanceClient, "_fetch_all_pages",
+                        lambda self, suffix, entity_key, filter_body=None: stat_campaigns)
+    monkeypatch.setattr(ap.AvitoPerformanceClient, "_campaign_stats",
+                        lambda self, cid, d_from, d_to: resp)
+    df = ap.get_campaigns_daily_stat("2026-06-05", "2026-06-05")
+    assert df.loc[0, "costs_nds"] == pytest.approx(1220.45)
+    assert df.loc[0, "spend_bonus"] == pytest.approx(0.55)
+    # производные считаются от рублёвой суммы, а не от копеечной
+    assert df.loc[0, "costs_without_nds"] == pytest.approx(1220.45 / 1.22)
+    assert df.loc[0, "costs_nds_ak"] == pytest.approx(1830.675)
 
 
 def test_get_groups_daily_stat(monkeypatch, sample_groups, groups_stats_resp):
