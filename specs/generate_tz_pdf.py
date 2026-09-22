@@ -134,7 +134,7 @@ pdf.multi_cell(
     0, 5,
     f"Эталонная Python-реализация: {MODULE_NAME}.py. "
     "Цель — портировать функциональность с сохранением структуры выходных данных. "
-    "Версия документа: 2026-06-10.",
+    "Версия документа: 2026-09-22 (предыдущая — 2026-06-10). Изменение: денежные метрики статистики перешли в копейки — spendKopecs / spendBonusKopecs вместо исчезнувших рублёвых spend / spendBonus (см. 3.6). Состав и порядок колонок выгрузок не изменился.",
     **NX,
 )
 pdf.ln(3)
@@ -223,12 +223,16 @@ BUL([
 
 H2("3.6. Подводные камни форматов данных")
 BUL([
-    "Деньги — целые числа в рублях С НДС (spend, spendBonus, budget, price, balance); "
-    "приходят как JSON integer.",
-    "ВАЖНО: API отдаёт расходы целочисленным значением (целые рубли, без копеек). "
-    "Из-за этого возможны незначительные расхождения со статистикой в личном кабинете "
-    "Авито — там расходы отображаются с двумя знаками после запятой. Это особенность "
-    "источника, а не ошибка выгрузки.",
+    "Деньги в статистике — целые числа в КОПЕЙКАХ, С НДС (spendKopecs, spendBonusKopecs); "
+    "приходят как JSON integer и перед записью в выгрузку делятся на 100 (рубли с копейками).",
+    "ВАЖНО (изменение источника, 2026-09-22): прежние рублёвые поля spend / spendBonus из "
+    "ответа исчезли. Реализация не должна читать их даже как запасной вариант: рубли, "
+    "принятые за копейки, занизят расход в 100 раз и сделают это молча. Отсутствующее поле "
+    "даёт пустое значение (NULL), а не 0.",
+    "Прежнее предупреждение о расхождениях с личным кабинетом Авито снято: оно объяснялось "
+    "целочисленным рублёвым входом, которого больше нет. Деньги вне статистики (budget, "
+    "price, balance, bonusBalance) на копеечный формат не перепроверялись и в выгрузках "
+    "не участвуют.",
     "costs_nds в выгрузке — десятичный тип (float), округление до 2 знаков сразу после "
     "чтения из API, до вычисления производных полей.",
     "Два формата дат в одном ответе (список кампаний): createdAt — ISO 8601 "
@@ -257,7 +261,8 @@ BUL([
     "Справочник групп: camp_type, camp_category, owner_id — join из справочника кампаний "
     'по campaign_id; group_type = "other", group_category = "other" — дефолт.',
     "Справочник креативов: id_key_group, owner_id — join из справочника групп по group_id.",
-    "Расходы (ak = 0.5): costs_nds = spend (float, round 2); "
+    "Расходы (ak = 0.5): costs_nds = spendKopecs / 100 (float, round 2), аналогично "
+    "spend_bonus = spendBonusKopecs / 100; "
     "costs_without_nds = costs_nds / (1 + ставка НДС), ставка по году даты строки: "
     "год >= 2026 — 22% (делитель 1.22), раньше — 20% (делитель 1.20), per-row; "
     "costs_nds_ak = costs_nds * 1.5; costs_without_nds_ak = costs_without_nds * 1.5.",
@@ -342,7 +347,8 @@ H2("4.4. get_campaigns_daily_stat(date_from, date_to) — статистика �
 P("Перебор кампаний из справочника: на каждую POST .../campaigns/{id}/stats с "
   '{"dateFrom", "dateTo"}; разворачивается campaign.data[]. 19 колонок: date '
   "(timestamp[:10]), campaign_id, payment_model, campaign_type, метрики impressions "
-  "(из API views), clicks, costs_nds (из spend), spend_bonus (spendBonus), "
+  "(из API views), clicks, costs_nds (из spendKopecs / 100), spend_bonus "
+  "(из spendBonusKopecs / 100), "
   "video_views_25/50/75/100 (videoViews*), производные costs_without_nds, ak, "
   "costs_nds_ak, costs_without_nds_ak, account_id, source_type_id, id_key_camp.")
 P("ВАЖНО: поля названия (campaign_name) в статистике нет — имена джойнить из справочника "
@@ -444,7 +450,7 @@ Content-Type: application/json
 
 { "dateFrom": "2026-06-02", "dateTo": "2026-06-02" }
 
-Ответ (фрагмент; spend - JSON integer, рубли с НДС):
+Ответ (фрагмент; spendKopecs - JSON integer, КОПЕЙКИ с НДС, делить на 100):
 {
   "campaign": {
     "id": 272290369,
@@ -452,10 +458,10 @@ Content-Type: application/json
     "campaignType": "textImage",
     "data": [
       { "timestamp": "2026-06-02T00:00:00+03:00", "views": 26202, "clicks": 36,
-        "spend": 151, "spendBonus": 0,
+        "spendKopecs": 15100, "spendBonusKopecs": 0,
         "ctr": 0.00137, "cpc": 420.75, "cpm": 578.08 }
     ],
-    "totalData": { "views": 26202, "clicks": 36, "spend": 151 }
+    "totalData": { "views": 26202, "clicks": 36, "spendKopecs": 15100 }
   }
 }
 
