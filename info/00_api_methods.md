@@ -178,6 +178,16 @@
 | `userId` | integer | ID создателя кампании |
 | `createdAt` / `updatedAt` | string (date-time) | Создание / обновление |
 
+**Живой замер 28.10.2026** (39 кампаний, выборка 5): приходит **18 полей**. Добавились к сводке июня
+`budgetKopeks` (рядом с рублёвым `budget` — оба), `statusReasons`, `topStatusReason`;
+`additionalAgreementID`/`performanceAdditionalAgreementID` по-прежнему отсутствуют.
+`startDate` есть у 2 из 5, `endDate` — у 3 из 5, `updatedAt` — у 3 из 5 (поля опциональные).
+
+> ⚠ **Настроек показа на уровне КАМПАНИИ нет.** В ответе отсутствуют `pace`, `priceControl`, `price`,
+> `audienceType`, расписание и таргетинги — всё это живёт только у ГРУПП (см. §2-bis). У кампании из
+> «стратегического» есть лишь `paymentModel`, `budget`/`budgetKopeks` и `budgetFrequency`.
+> Проверено на 5 кампаниях 28.10.2026.
+
 ### Метод: `POST /ads/v1/account/{accountID}/groups` — список групп (x-cost: 1)
 Фильтры: `ids`, `campaignIDs`, `statuses`, `paces`, `managers`, `advertisers`, `paymentModels`, `timeFrame{from,to}`.
 Ответ — `groups[]` + `total`. Ключевые поля: `id`, `name`, `campaignID`, `accountID`, `advertiserID`,
@@ -187,6 +197,26 @@
 `frequencyPeriod` (`no_limit`/`day`/`week`/`month`), `scheduleType` (`always`/`weekdays9To20`/`custom`),
 `activitySchedule` (по дням недели, часы 0–23), `targeting*IDs` (возраст/пол/доход/интересы/локации/…),
 `periodStartAt`/`periodEndAt`/`periodTimezone`, `haveCreative`, `actions`, `createdAt`/`updatedAt`, `userID`, `managerID`.
+
+**Живой замер 28.10.2026** (аккаунт 383819919, 43 группы, выборка 5): фактически приходит **37 полей**,
+и среди них есть НЕ описанные выше:
+- `budgetKopeks`, `priceKopeks` — копеечные дубли денег. ⚠ **Рублёвые `budget`/`price` НЕ исчезли**
+  (в отличие от статистики, где рублёвый `spend` пропал): замер — `budget: 300000` и
+  `budgetKopeks: 30000000` в одной записи. То есть в справочниках сейчас **оба** формата.
+- `frequencyRules` — массив `[{count, period}]`, структурный дубль пары `frequencyCount`/`frequencyPeriod`.
+- `statusReasons` (массив) и `topStatusReason` (строка) — причины текущего статуса.
+- `startASAP` (bool) — в сводке июня значился только в списке «не вынесено».
+- `haveCreative` в ответе по-прежнему ОТСУТСТВУЕТ (подтверждено тем же замером).
+- `periodStartAt` есть у 2 групп из 5, `periodEndAt` — у 3 из 5: поля **опциональные**, зависят от
+  `scheduleType`/`startASAP`.
+
+> **Стратегия показа группы — это НЕ одно поле, а набор** (см. также §5): `paymentModel` (CPM/CPC),
+> `priceControl` (`manual` = ставка вручную / `auto` = автоматическая), `pace` (`asap` / `even`),
+> `price`/`priceKopeks`, `budget`/`budgetKopeks` + `budgetFrequency`, частотные ограничения
+> (`frequencyCount`/`frequencyPeriod`/`frequencyRules`), расписание (`scheduleType` + `activitySchedule`),
+> `startASAP`, тип аудитории (`audienceType`, включая `autotargeting`) и таргетинги `targeting*IDs`.
+> Отдельного поля `strategy`/`bidStrategy`/`optimization`/`goal`/`autobudget` в ответе **НЕТ**
+> (проверено на 5 группах 28.10.2026).
 
 ### Метод: `POST /ads/v1/account/{accountID}/creatives` — список креативов (x-cost: 1)
 Фильтры: `ids`, `groupIDs`, `campaignIDs`, `paymentModels`, `campaignTypes`, `statuses`, `managers`, `advertisers`, `timeFrame{from,to}`.
@@ -234,8 +264,13 @@
   ⚠️ **Статус проверки:** состав ключей задан владельцем 2026-09-22 по свежей документации;
   живым ответом **не подтверждён** — пул API-баллов аккаунта исчерпан (см. ниже), проверить
   после сброса пула.
-- **Деньги вне статистики** (`budget`, `price`, `balance`, `bonusBalance`) — по состоянию на
-  2026-06-10 целые рубли с НДС; на копеечный формат **не перепроверялись**, в выгрузках не участвуют.
+- **Деньги вне статистики** (`budget`, `price`, `balance`, `bonusBalance`) — **перепроверены живым
+  замером 28.10.2026 на справочниках кампаний и групп:** рублёвые поля на месте И рядом появились
+  копеечные `budgetKopeks` / `priceKopeks` (в одной записи `budget: 300000` + `budgetKopeks: 30000000`).
+  То есть здесь переход на копейки прошёл **аддитивно**, а в статистике — с заменой (рублёвый `spend`
+  исчез). Вывод: формат денег в этом API надо проверять **по каждому методу отдельно**, общего
+  правила нет. В выгрузках эти поля не участвуют (удалены из DataFrame 2026-06-10).
+  ⚠ `balance`/`bonusBalance` (метод `/balance`) в этот замер НЕ попали — остаются непроверенными.
 - **Даты:** `YYYY-MM-DD`; `timestamp` в статистике — ISO 8601 c дневной гранулярностью.
 - **Единая схема ошибки:** `{ "code": string, "message": string }`.
 - **HTTP-коды:** `400` (невалидное тело / период >100 дней), `401` (нет/просрочен токен), `403` (токен не на этот `accountID`), `404` (сущность не найдена), `429` (лимит), `500`, `503`.
