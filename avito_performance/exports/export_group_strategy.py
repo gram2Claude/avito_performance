@@ -49,6 +49,9 @@ COLUMNS = [
     "price_control", "price_control_смысл",
 ]
 
+# Колонки с деньгами: показываем с двумя знаками (значение — рубли, см. докстроку).
+MONEY_COLUMNS = ("price_kopeks", "budget_kopeks")
+
 MEAN_PRICE_CONTROL = {
     "auto": "ставка автоматическая",
     "manual": "ставка вручную",
@@ -181,6 +184,13 @@ def main(out_dir: Path) -> int:
                 longest = max([len(str(col))] + [len(str(v)) for v in frame[col].head(200)])
                 ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = \
                     min(max(longest + 2, 10), 60)
+                # Денежные колонки: значение остаётся ЧИСЛОМ (чтобы считались суммы и
+                # работала сортировка), но показывается с двумя знаками — иначе 215.00
+                # отображается как «215», и требование «два знака» выполнено лишь на
+                # словах. Формат ставится на ячейки данных, не на заголовок.
+                if name == "Стратегии групп" and col in MONEY_COLUMNS:
+                    for row in range(2, len(frame) + 2):
+                        ws.cell(row=row, column=i).number_format = "0.00"
     df.to_csv(csv, index=False, encoding="cp1251", errors="replace")
 
     # ── постусловия: счётчик сделанного, а не слово «успешно» ────────────────

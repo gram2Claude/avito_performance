@@ -53,6 +53,19 @@ python avito_performance/smoke_tests/test_<имя_функции>.py   # нап�
 тест удаляет старые выгрузки этой же функции — в `raw_data/` лежит только последняя.
 После прогона показать первые 5 строк **из сохранённого CSV** (не из памяти) — см. `test/00_README.md`.
 
+Выгрузка настроек стратегии показа в Excel (уровень групп, 13 колонок — состав и порядок
+заданы владельцем 2026-10-28):
+```bash
+python avito_performance/exports/export_group_strategy.py            # в raw_data/
+python avito_performance/exports/export_group_strategy.py <каталог>  # в указанный каталог
+```
+Стоимость — 2 балла (списки групп и кампаний). Исходы: `0` — выгружено и число строк совпало
+с `total` от API, `1` — записано с расхождением, `2` — измерить не удалось (нет баллов/групп).
+⚠ Колонки `price_kopeks`/`budget_kopeks` названы по полям API, но **содержат рубли**
+(÷100, два знака, округление половины вверх — `kopeks_to_rubles`, тесты в
+`tests/test_export_group_strategy.py`). Стратегия задаётся на уровне **группы**; отдельного
+поля `strategy` в API нет — см. `info/00_api_methods.md`.
+
 Demo notebook:
 ```bash
 jupyter notebook avito_performance/avito_performance_demo.ipynb
